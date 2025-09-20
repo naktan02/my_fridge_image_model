@@ -1,0 +1,15 @@
+path: ../data
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: apple
+  1: onion
+  2: green_onion
+  3: garlic
+  4: tomato
+  5: potato
+  6: carrot
+  7: bell_pepper
+  8: zucchini
+  9: cucumber

@@ -1,0 +1,6 @@
+.venv/
+runs/
+release/*.tflite
+release/CHECKSUMS.txt
+__pycache__/
+*.pt

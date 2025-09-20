@@ -1,0 +1,15 @@
+export:
+  format: tflite
+  imgsz: 640
+  int8: true
+  nms: true
+  data: ./configs/data.yaml
+  fraction: 0.2
+  device: cpu
+manifest:
+  postprocess:
+    score_thresh: 0.25
+    nms_iou: 0.5
+    max_det: 100
+    has_builtin_nms: true
+  data_version: "v0.3"
