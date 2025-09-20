@@ -1,0 +1,9 @@
+targets:
+  - name: "Pixel7"
+    delegate: "NNAPI"
+    min_fps: 25
+  - name: "Galaxy A52"
+    delegate: "XNNPACK"
+    min_fps: 15
+fallback:
+  imgsz: [640, 512, 320]

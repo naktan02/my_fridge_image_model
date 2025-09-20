@@ -1,0 +1,15 @@
+model:
+  name: yolo11n.pt
+  data_cfg: ./configs/data.yaml
+train:
+  imgsz: 640
+  epochs: 100
+  batch: 16
+  device: 0
+  lr0: 0.01
+  cosine: true
+  ema: true
+  mosaic: 0.8
+  hsv: true
+  close_mosaic_epoch: 20
+  seed: 42
