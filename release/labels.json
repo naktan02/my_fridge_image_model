@@ -1,1 +1,4 @@
-["apple","onion","green_onion","garlic","tomato","potato","carrot","bell_pepper","zucchini","cucumber"]
+[
+  { "id": 0, "name": "Garlic", "server_key": "VGT-GLC", "synonyms": ["마늘"] },
+  { "id": 1, "name": "onion", "server_key": "VGT-ONN", "synonyms": ["양파"] }
+]
