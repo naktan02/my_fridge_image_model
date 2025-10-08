@@ -1,13 +1,11 @@
-# 1. 데이터셋의 루트 폴더 경로를 지정합니다.
-# Roboflow의 경로('../train/images') 대신, 우리 프로젝트 구조를 사용합니다.
-path: ../data
+# Hydra가 실행되는 위치(outputs/...)에서 두 단계 위인 프로젝트 루트 폴더로 이동합니다.
+path: ../../
 
-# 2. train/val/test 이미지 폴더 경로를 지정합니다.
-train: images/train
-val: images/val
-test: images/test
+# 프로젝트 루트 폴더를 기준으로, 실제 데이터 경로를 정확하게 지정합니다.
+train: data/image/train
+val: data/image/val    # 'valid'가 아닌 'val'로 수정
+test: data/image/test
 
-# 3. Roboflow 데이터셋에 포함된 10개의 클래스 이름을 순서대로 모두 적어줍니다.
-names:
-  0: Garlic
-  1: onion
+# Roboflow에서 가져온 데이터셋의 클래스 정보를 사용합니다.
+nc: 2
+names: ['Garlic', 'onion']
