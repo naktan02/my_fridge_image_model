@@ -1,10 +1,14 @@
-# Hydra가 실행되는 위치(outputs/...)에서 두 단계 위인 프로젝트 루트 폴더로 이동합니다.
-path: ../../
+path: ../../my_fridge-1
 
-train: data/image/train
-val: data/image/val    
-test: data/image/test
+# Roboflow 폴더 내부의 경로를 그대로 사용합니다.
+train: train/images
+val: valid/images
+test: test/images
 
-# Roboflow에서 가져온 데이터셋의 클래스 정보를 사용합니다.
+# Roboflow의 data.yaml에 있던 클래스 정보를 그대로 가져옵니다.
 nc: 2
 names: ['Garlic', 'onion']
+
+
+
+                
