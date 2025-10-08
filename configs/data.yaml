@@ -1,9 +1,8 @@
 # Hydra가 실행되는 위치(outputs/...)에서 두 단계 위인 프로젝트 루트 폴더로 이동합니다.
 path: ../../
 
-# 프로젝트 루트 폴더를 기준으로, 실제 데이터 경로를 정확하게 지정합니다.
 train: data/image/train
-val: data/image/val    # 'valid'가 아닌 'val'로 수정
+val: data/image/val    
 test: data/image/test
 
 # Roboflow에서 가져온 데이터셋의 클래스 정보를 사용합니다.
