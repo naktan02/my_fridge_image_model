@@ -25,8 +25,6 @@ def main(cfg: DictConfig) -> None:
         batch=cfg.train.batch,
         device=cfg.train.device,
         lr0=cfg.train.lr0,
-        cosine=cfg.train.cosine,
-        ema=cfg.train.ema,
         mosaic=cfg.train.mosaic,
         close_mosaic=cfg.train.close_mosaic_epoch,
         seed=cfg.train.seed,
