@@ -1,4 +1,4 @@
-path: ../../my_fridge-1
+path: ./my_fridge-1
 
 # Roboflow 폴더 내부의 경로를 그대로 사용합니다.
 train: train/images
@@ -8,7 +8,3 @@ test: test/images
 # Roboflow의 data.yaml에 있던 클래스 정보를 그대로 가져옵니다.
 nc: 2
 names: ['Garlic', 'onion']
-
-
-
-                
