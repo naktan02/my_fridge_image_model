@@ -1,122 +1,153 @@
-# src/run_train.py
+# src/run_export.py (교체)
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+from __future__ import annotations
 from pathlib import Path
-import yaml
+import sys, random, shutil, warnings
+from typing import Optional, Iterator, List
 import hydra
 from omegaconf import DictConfig
 from ultralytics import YOLO
+import tensorflow as tf
 
-def _resolve_dataset_dirs(data_yaml: Path):
-    """data.yaml을 읽어 train/val/test labels 디렉터리들을 절대경로로 반환."""
-    with open(data_yaml, "r", encoding="utf-8") as f:
-        d = yaml.safe_load(f)
+def _latest_best(weights_root: Path) -> Path:
+    cands = list(weights_root.rglob("best.pt"))
+    if not cands:
+        raise FileNotFoundError("No best.pt under runs/detect")
+    return max(cands, key=lambda p: p.stat().st_mtime)
 
-    # base path
-    base = d.get("path", None)
-    base = Path(base).resolve() if base else None
+def _ensure_release_dir() -> Path:
+    out = Path("release").resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    return out
 
-    def _abs_img_dir(key):
-        v = d.get(key, None)
-        if v is None:
-            return None
-        p = Path(v)
-        if not p.is_absolute():
-            if base is None:
-                # base가 없으면 data.yaml 기준 상대경로
-                p = (data_yaml.parent / p).resolve()
-            else:
-                p = (base / p).resolve()
-        return p
+def _inspect_outputs(tflite_path: Path) -> int:
+    itp = tf.lite.Interpreter(model_path=str(tflite_path))
+    itp.allocate_tensors()
+    outs = itp.get_output_details()
+    ins = itp.get_input_details()
+    print(f"INPUT : {ins}")
+    print(f"OUTPUT: {len(outs)}")
+    for i, od in enumerate(outs):
+        print(f"{i} {od['name']} {od['shape']} {od['dtype']}")
+    return len(outs)
 
-    train_img = _abs_img_dir("train")
-    val_img   = _abs_img_dir("val")
-    test_img  = _abs_img_dir("test")  # 없으면 None 가능
+def _maybe_enforce_outputs(tflite_path: Path, require_2_or_4: bool):
+    n = _inspect_outputs(tflite_path)
+    if require_2_or_4 and n not in (2, 4):
+        raise RuntimeError(f"Expected 2 or 4 outputs, found {n}: {tflite_path}")
+    if not require_2_or_4 and n not in (2, 4):
+        print(f"⚠️  NOTE: outputs={n} (YOLO raw). Use plain TFLite+NMS on Android (no MediaPipe ObjectDetector).")
 
-    def _labels_dir(img_dir: Path | None):
-        if img_dir is None:
-            return None
-        # .../images → .../labels
-        if img_dir.name == "images":
-            return img_dir.parent / "labels"
-        # 사용자 커스텀일 경우에도 상응 디렉터리 추정 시도
-        cand = img_dir.parent / "labels"
-        return cand
+def _copy_to_release(src: Path) -> Path:
+    dst = _ensure_release_dir() / "model.tflite"
+    shutil.copy2(src, dst)
+    print(f"✅ release: {dst}")
+    return dst
 
-    return {
-        "train_labels": _labels_dir(train_img),
-        "val_labels":   _labels_dir(val_img),
-        "test_labels":  _labels_dir(test_img),
-        "names": d.get("names", None),
-        "nc": d.get("nc", None),
-    }
+def _rep_dataset(rep_dir: Optional[Path], size: int, limit: Optional[int]) -> Iterator[list]:
+    if rep_dir and rep_dir.exists():
+        exts = {".jpg",".jpeg",".png",".webp",".bmp"}
+        imgs: List[Path] = [p for p in rep_dir.rglob("*") if p.suffix.lower() in exts]
+        if limit and len(imgs) > limit:
+            random.shuffle(imgs); imgs = imgs[:limit]
+        if imgs:
+            print(f"ℹ️  Using {len(imgs)} representative images from: {rep_dir}")
+            for p in imgs:
+                raw = tf.io.read_file(str(p))
+                img = tf.io.decode_image(raw, channels=3, expand_animations=False)
+                img = tf.image.convert_image_dtype(img, tf.float32)
+                img = tf.image.resize(img, (size, size))
+                yield [tf.expand_dims(img, 0)]
+            return
+    warnings.warn("No representative images; using random tensors.")
+    for _ in range(8):
+        yield [tf.random.uniform((1, size, size, 3), 0.0, 1.0, tf.float32)]
 
-def _assert_detection_dataset(data_yaml: Path) -> None:
-    if not data_yaml.exists():
-        raise FileNotFoundError(f"data.yaml not found: {data_yaml}")
+def export_direct_tflite(
+    ckpt: Path, imgsz: int, nms: bool, device: str, int8: bool,
+    project: Path, name: str, require_2_or_4: bool
+) -> Path:
+    model = YOLO(str(ckpt))
+    out = model.export(format="tflite", imgsz=imgsz, nms=nms, device=device,
+                       int8=int8, project=str(project), name=name)
+    tfl = Path(out) if isinstance(out, (str, Path)) else None
+    if not tfl or not tfl.exists():
+        cands = list((project / name).glob("*.tflite"))
+        if not cands:
+            raise FileNotFoundError(f"No *.tflite in {(project/name)}")
+        tfl = cands[0]
+    _maybe_enforce_outputs(tfl, require_2_or_4)
+    return _copy_to_release(tfl)
 
-    info = _resolve_dataset_dirs(data_yaml)
-    counts = {}
-    for split in ("train_labels", "val_labels", "test_labels"):
-        p = info[split]
-        if p is None:
-            counts[split] = 0
-            continue
-        counts[split] = len(list(Path(p).glob("*.txt")))
+def export_via_savedmodel_uint8_io(
+    ckpt: Path, imgsz: int, nms: bool, device: str,
+    rep_dir: Optional[Path], rep_limit: Optional[int],
+    require_2_or_4: bool
+) -> Path:
+    model = YOLO(str(ckpt))
+    saved = Path(model.export(format="saved_model", imgsz=imgsz, nms=nms, device=device)).resolve()
+    if saved.is_file(): saved = saved.with_suffix("") / "saved_model"
+    if not saved.exists():
+        alt = saved.parent / "saved_model"
+        saved = alt if alt.exists() else saved
+    if not saved.exists():
+        raise FileNotFoundError(f"SavedModel not found: {saved}")
 
-    total = sum(counts.values())
-    if counts["train_labels"] == 0 or total == 0:
-        raise RuntimeError(
-            "라벨 .txt를 찾지 못했습니다.\n"
-            f"- train labels: {info['train_labels']} ({counts['train_labels']})\n"
-            f"- val   labels: {info['val_labels']} ({counts['val_labels']})\n"
-            f"- test  labels: {info['test_labels']} ({counts['test_labels']})\n"
-            "→ data.yaml의 path/train/val/test 경로와 라벨 폴더를 확인하세요."
-        )
+    conv = tf.lite.TFLiteConverter.from_saved_model(str(saved))
+    conv.optimizations = [tf.lite.Optimize.DEFAULT]
+    conv.representative_dataset = lambda: _rep_dataset(rep_dir, imgsz, rep_limit)
+    conv.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+    conv.inference_input_type = tf.uint8
+    conv.inference_output_type = tf.uint8
 
-    # names/nc 간단 일관성 체크(있으면)
-    names = info["names"]
-    nc = info["nc"]
-    if names is not None and nc is not None and isinstance(names, list) and isinstance(nc, int):
-        if len(names) != nc:
-            print(f"⚠️  경고: nc({nc}) != len(names)({len(names)}). data.yaml을 확인하세요.")
+    tfl_bytes = conv.convert()
+    tmp = Path("exports") / "tmp_uint8_io.tflite"
+    tmp.parent.mkdir(parents=True, exist_ok=True)
+    tmp.write_bytes(tfl_bytes)
+    _maybe_enforce_outputs(tmp, require_2_or_4)
+    return _copy_to_release(tmp)
 
-def _assert_detection_model(model_name: str) -> None:
-    name = model_name.lower()
-    bad = ("-cls.pt", "-seg.pt", "-pose.pt")
-    if any(name.endswith(suf) for suf in bad):
-        raise RuntimeError(
-            f"탐지 전용이 아닌 모델 가중치 지정: {model_name}\n"
-            "→ 예: yolo11n.pt, yolov8n.pt 같은 det 전용을 사용하세요."
-        )
-
-@hydra.main(version_base=None, config_path="../conf", config_name="train")
+@hydra.main(version_base=None, config_path="../conf", config_name="export")
 def main(cfg: DictConfig) -> None:
-    data_cfg = Path(cfg.model.data_cfg).resolve()
-    _assert_detection_dataset(data_cfg)
-    _assert_detection_model(cfg.model.name)
+    imgsz   = int(cfg.export.imgsz)
+    nms     = bool(cfg.export.nms)
+    device  = str(cfg.export.device)
+    project = Path(str(cfg.export.get("project", "./exports"))).resolve()
+    name    = str(cfg.export.get("name", "tflite_fp32"))
 
-    model = YOLO(cfg.model.name)
+    use_direct     = bool(cfg.export.get("use_direct_tflite", True))
+    int8_direct    = bool(cfg.export.get("int8", False))
+    io_uint8       = bool(cfg.export.get("io_uint8", False))
+    require_mpipe  = bool(cfg.export.get("require_mediapipe_outputs", False))  # ← 새 옵션
 
-    hsv = bool(cfg.train.hsv)
-    hsv_kwargs = dict(
-        hsv_h=0.015 if hsv else 0.0,
-        hsv_s=0.7 if hsv else 0.0,
-        hsv_v=0.4 if hsv else 0.0,
-    )
+    if cfg.export.get("ckpt"):
+        ckpt = Path(str(cfg.export.ckpt)).resolve()
+    else:
+        ckpt = _latest_best(Path("runs/detect").resolve())
+    if not ckpt.exists():
+        raise FileNotFoundError(f"checkpoint not found: {ckpt}")
 
-    model.train(
-        data=str(data_cfg),
-        imgsz=int(cfg.train.imgsz),
-        epochs=int(cfg.train.epochs),
-        batch=int(cfg.train.batch),
-        device=str(cfg.train.device),
-        lr0=float(cfg.train.lr0),
-        mosaic=float(cfg.train.mosaic),
-        close_mosaic=int(cfg.train.close_mosaic_epoch),
-        seed=int(cfg.train.seed),
-        **hsv_kwargs,
-    )
+    project.mkdir(parents=True, exist_ok=True)
 
-    model.val(data=str(data_cfg), imgsz=int(cfg.train.imgsz), conf=0.001)
+    if use_direct and not io_uint8:
+        export_direct_tflite(ckpt, imgsz, nms, device, int8_direct, project, name, require_mpipe)
+    elif io_uint8:
+        rep_dir = Path(str(cfg.export.rep_dir)).resolve() if cfg.export.get("rep_dir") else None
+        rep_limit = int(cfg.export.rep_limit) if cfg.export.get("rep_limit") else None
+        export_via_savedmodel_uint8_io(ckpt, imgsz, nms, device, rep_dir, rep_limit, require_mpipe)
+    else:
+        export_direct_tflite(ckpt, imgsz, nms, device, False, project, name, require_mpipe)
+
+    print("\nNext:")
+    print(" 1) python add_metadata.py  → model_with_metadata.tflite")
+    print(" 2) (선택) check_outputs.py model_with_metadata.tflite")
+    print(" 3) Android: TFLite Interpreter + 커스텀 NMS로 박스/라벨 렌더")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"\n[EXPORT FAILED] {e}", file=sys.stderr)
+        sys.exit(1)

@@ -1,12 +1,13 @@
+# conf/train.yaml
 model:
-  name: yolo11n.pt                 # 탐지 전용 체크포인트
-  data_cfg: ./configs/data.yaml
+  name: yolo11n.pt
+  data_cfg: /home/jmgjmg102/my_fridge_image_model/configs/data.yaml  # 절대경로 권장
 
 train:
   imgsz: 640
   epochs: 100
   batch: 16
-  device: cpu                      # GPU면 "0"
+  device: cpu
   lr0: 0.01
   mosaic: 1.0
   close_mosaic_epoch: 10
