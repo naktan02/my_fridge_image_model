@@ -1,4 +1,4 @@
-path: ./my_fridge-1
+path: /home/jmgjmg102/my_fridge_image_model/my_fridge-1
 
 # Roboflow 폴더 내부의 경로를 그대로 사용합니다.
 train: train/images

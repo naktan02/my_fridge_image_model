@@ -1,21 +1,14 @@
-defaults:
-  - ultralytics
-  - _self_
+model:
+  name: yolo11n.pt                 # 탐지 전용 체크포인트
+  data_cfg: ./configs/data.yaml
 
-task: detect
-model: yolo11n.pt  # 훈련에 사용할 기본 모델
-data: data.yaml   # 데이터셋 설정 파일 (configs/data.yaml을 찾습니다)
-
-# 훈련 관련 하이퍼파라미터
-epochs: 100
-batch: 16
-imgsz: 640
-device: cpu       # GPU를 사용하려면 "0" 또는 [0, 1] 등으로 설정
-lr0: 0.01
-patience: 20      # Early stopping을 위한 patience
-mosaic: 1.0       # Mosaic 데이터 증강 사용
-close_mosaic: 10  # 마지막 10 에포크에서는 Mosaic 비활성화
-seed: 42
-hsv_h: 0.015      # 색상(H) 증강 계수
-hsv_s: 0.7        # 채도(S) 증강 계수
-hsv_v: 0.4        # 명도(V) 증강 계수
+train:
+  imgsz: 640
+  epochs: 100
+  batch: 16
+  device: cpu                      # GPU면 "0"
+  lr0: 0.01
+  mosaic: 1.0
+  close_mosaic_epoch: 10
+  seed: 42
+  hsv: true

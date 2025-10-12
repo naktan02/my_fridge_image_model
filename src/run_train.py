@@ -25,7 +25,7 @@ def _assert_detection_model(model_name: str) -> None:
             "→ 예: yolo11n.pt, yolov8n.pt 같은 det 전용을 사용하세요."
         )
 
-@hydra.main(version_base=None, config_path="./conf", config_name="train")
+@hydra.main(version_base=None, config_path="../conf", config_name="train")
 def main(cfg: DictConfig) -> None:
     data_cfg = Path(cfg.model.data_cfg).resolve()
     _assert_detection_dataset(data_cfg)
