@@ -1,13 +1,15 @@
+# conf/train.yaml
 model:
   name: yolo11n.pt
-  data_cfg: ./configs/data.yaml
+  data_cfg: /home/jmgjmg102/my_fridge_image_model/configs/data.yaml  # 절대경로 권장
+
 train:
   imgsz: 640
   epochs: 100
   batch: 16
-  device: 0
+  device: cpu
   lr0: 0.01
-  mosaic: 0.8
-  hsv: true
-  close_mosaic_epoch: 20
+  mosaic: 1.0
+  close_mosaic_epoch: 10
   seed: 42
+  hsv: true

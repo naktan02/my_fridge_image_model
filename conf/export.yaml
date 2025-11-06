@@ -1,11 +1,14 @@
+# conf/export.yaml
 export:
   format: tflite
   imgsz: 640
-  int8: true
   nms: true
-  data: ./configs/data.yaml
-  fraction: 0.2
+  int8: false            # 먼저 FP32 성공 → 나중에 true
   device: cpu
+  use_direct_tflite: true  # 직출 경로 고정(가장 안전)
+  project: ./exports        # 산출물 루트
+  name: tflite_nms_fp32     # 산출물 서브폴더
+
 manifest:
   postprocess:
     score_thresh: 0.25

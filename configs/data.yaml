@@ -1,14 +1,7 @@
-path: ../../my_fridge-1
-
-# Roboflow 폴더 내부의 경로를 그대로 사용합니다.
+# configs/data.yaml
+path: /home/jmgjmg102/my_fridge_image_model/my_fridge-1
 train: train/images
-val: valid/images
+val: valid/images         # Roboflow는 'valid' 폴더, 키는 'val'로 써도 OK
 test: test/images
-
-# Roboflow의 data.yaml에 있던 클래스 정보를 그대로 가져옵니다.
 nc: 2
 names: ['Garlic', 'onion']
-
-
-
-                
